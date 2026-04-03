@@ -1,8 +1,8 @@
 # scribdl-py 📄
 
-> Simple Scribd document and embed archiver.
+> Simple tool to save Scribd documents and embeds as PDF files.
 
-![Version](https://img.shields.io/badge/version-1.0.0-purple.svg)
+![Version](https://img.shields.io/badge/version-2.0.0-purple.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
@@ -18,23 +18,25 @@ This tool is intended for personal archival of documents you already have legal 
 
 ### Key Features
 
-- **Capture Monitoring**: Detects page loading states for clean captures.
-- **HD Scaling**: Captures at 2.0x factor for better readability.
-- **PDF Synthesis**: Merges all captured frames into a single PDF.
-- **Header Blocks**: Skips intrusive analytics and cookie banners.
+- **Smart Waiting**: Automatically checks if the page is ready before saving.
+- **Auto-Retry**: Tries again if a page is slow to load (up to 3 times).
+- **High Quality**: Saves pages in HD for better reading and printing.
+- **Pick Pages**: Download the whole file or just a few pages (e.g. `1-10`).
+- **Join PDF**: Combines all pages into a single, clean PDF file.
+- **Clean View**: Automatically hides annoying pop-ups and cookie banners.
 
 ### Installation
 
 1. **Clone & Setup Environment**
 
    ```bash
-   git clone https://github.com/nezrt/scribdl-py.git
+   git clone https://github.com/coflyn/scribdl-py.git
    cd scribdl-py
    python3 -m venv venv
    source venv/bin/activate
    ```
 
-2. **Install Dependencies**
+2. **Install Requirements**
    ```bash
    pip install -r requirements.txt
    playwright install chromium
@@ -45,6 +47,8 @@ This tool is intended for personal archival of documents you already have legal 
 Simply run the script with the document URL:
 
 ```bash
+python main.py <enter>
+or
 python main.py "SCRIBD_URL"
 ```
 
@@ -52,6 +56,7 @@ python main.py "SCRIBD_URL"
 All default settings (delay, scale, output) can be configured in `config.ini`. You can also override them via CLI:
 
 - `-o, --output`: Custom output filename.
+- `-p, --pages` : Page selection (`all` or `1-10`).
 - `-d, --delay` : Custom delay per page (seconds).
 - `-s, --scale` : Scale factor (1 or 2).
 
