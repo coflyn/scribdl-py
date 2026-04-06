@@ -183,33 +183,8 @@ def main(url, output, pages, delay, scale):
                 page_element = all_locators.nth(idx)
                 page_element.scroll_into_view_if_needed()
                 
-                max_retries = 3
-                image_ready = False
-                
-                for attempt in range(max_retries):
-                    try:
-                        time.sleep(final_delay + (attempt * 1.5)) 
-                        page.wait_for_function(
-                            """(idx) => {
-                                const p = document.querySelectorAll('.outer_page')[idx];
-                                if (!p) return false;
-                                const img = p.querySelector('img');
-                                return img && img.complete && img.naturalWidth > 0;
-                            }""", 
-                            arg=idx, 
-                            timeout=6000
-                        )
-                        image_ready = True
-                        break
-                    except:
-                        if attempt < max_retries - 1:
-                             progress.update(capture_task, description=f"[yellow]Retrying page {idx+1} ({attempt+2}/{max_retries})...")
-                        continue
-                
-                if not image_ready:
-                    progress.update(capture_task, description=f"[red]Warning: Page {idx+1} rendering timed out.")
-                else:
-                    progress.update(capture_task, description=f"[green]Capturing high-res renders...")
+                time.sleep(final_delay)
+                progress.update(capture_task, description=f"[green]Capturing page {idx+1}...")
                 
                 img_path = os.path.join(temp_dir, f"page_{idx+1}.png")
                 page_element.screenshot(path=img_path)

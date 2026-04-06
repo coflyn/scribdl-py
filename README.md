@@ -19,7 +19,6 @@ This tool is intended for personal archival of documents you already have legal 
 ### Key Features
 
 - **Smart Waiting**: Automatically checks if the page is ready before saving.
-- **Auto-Retry**: Tries again if a page is slow to load (up to 3 times).
 - **High Quality**: Saves pages in HD for better reading and printing.
 - **Pick Pages**: Download the whole file or just a few pages (e.g. `1-10`).
 - **Join PDF**: Combines all pages into a single, clean PDF file.
@@ -53,7 +52,7 @@ python main.py "SCRIBD_URL"
 ```
 
 **Custom Settings:**
-All default settings (delay, scale, output) can be configured in `config.ini`. You can also override them via CLI:
+All default settings can be configured in `config.ini`. You can also override them via CLI:
 
 - `-o, --output`: Custom output filename.
 - `-p, --pages` : Page selection (`all` or `1-10`).
