@@ -8,6 +8,7 @@ __pycache__/
 # Application specific
 temp_capture/
 *.pdf
+history.json
 
 # System files
 .DS_Store

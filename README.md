@@ -1,12 +1,12 @@
-# scribdl-py 📄
+# Scribd Downloader (scribdl-py) 📄
 
 > Simple tool to save Scribd documents and embeds as PDF files.
 
-![Version](https://img.shields.io/badge/version-2.0.0-purple.svg)
+![Version](https://img.shields.io/badge/version-3.0.0-purple.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-**scribdl-py** is a CLI tool that helps you save Scribd documents and embeds into high-quality PDF files. It uses a headless browser engine to capture every page accurately.
+**Scribd Downloader (scribdl-py)** is a CLI tool that helps you save Scribd documents and embeds into high-quality PDF files for offline reading. It uses a headless browser engine to capture every page accurately and smoothly.
 
 ---
 
@@ -23,6 +23,7 @@ This tool is intended for personal archival of documents you already have legal 
 - **Pick Pages**: Download the whole file or just a few pages (e.g. `1-10`).
 - **Join PDF**: Combines all pages into a single, clean PDF file.
 - **Clean View**: Automatically hides annoying pop-ups and cookie banners.
+- **History Log**: Keeps a record of each download in `history.json`.
 
 ### Installation
 

@@ -6,6 +6,8 @@ import re
 import click
 import img2pdf
 import configparser
+import json
+from datetime import datetime
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.prompt import Prompt
@@ -62,6 +64,30 @@ def parse_page_selection(selection_str, total_pages):
         if "out of document bounds" in str(e):
             raise e
         raise ValueError("Invalid format. Use 'all', a single number (e.g. 3), or range (e.g. 1-10).")
+
+def log_history(url, title, pages_count, output_file):
+    history_file = "history.json"
+    history = []
+    
+    if os.path.exists(history_file):
+        try:
+            with open(history_file, 'r') as f:
+                history = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            history = []
+            
+    new_entry = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "title": title,
+        "url": url,
+        "pages": pages_count,
+        "output": output_file
+    }
+    
+    history.append(new_entry)
+    
+    with open(history_file, 'w') as f:
+        json.dump(history, f, indent=4)
 
 @click.command()
 @click.argument('url', required=False)
@@ -207,6 +233,8 @@ def main(url, output, pages, delay, scale):
             progress.update(pdf_task, completed=100)
             time.sleep(0.5)
             browser.close()
+            
+            log_history(url, doc_title, len(page_indices), output_file)
             
     for img in image_paths:
         if os.path.exists(img):
