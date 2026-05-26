@@ -18,11 +18,13 @@ This tool is intended for personal archival of documents you already have legal 
 
 ### Key Features
 
-- **Smart Waiting**: Automatically checks if the page is ready before saving.
+- **Smart Waiting**: Automatically checks if images on the page are fully loaded before capturing to prevent blank pages.
+- **Auto-Organized Output**: Downloaded PDFs are neatly saved into the `output/` folder by default.
+- **Safe Naming**: Automatically sanitizes filenames so they work flawlessly across Windows, Mac, and Linux.
+- **Reliable Cleanup**: Temporary files are handled safely and automatically cleaned up, even if you stop the script midway.
 - **High Quality**: Saves pages in HD for better reading and printing.
-- **Pick Pages**: Download the whole file or just a few pages (e.g. `1-10`).
-- **Join PDF**: Combines all pages into a single, clean PDF file.
-- **Clean View**: Automatically hides annoying pop-ups and cookie banners.
+- **Pick Pages**: Download the whole file or just specific pages (e.g., `1-10`).
+- **Join PDF**: Combines all captured pages into a single, clean PDF file.
 - **History Log**: Keeps a record of each download in `history.json`.
 
 ### Installation

@@ -1,17 +1,18 @@
 import os
 import sys
 import time
-import random
 import re
 import click
 import img2pdf
 import configparser
 import json
+import tempfile
+import atexit
 from datetime import datetime
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.prompt import Prompt
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 console = Console()
 
@@ -31,7 +32,10 @@ def load_config():
     return defaults
 
 def get_filename(url, page_title):
-    clean_title = "".join([c for c in page_title if c.isalnum() or c in (' ', '-', '_')]).strip()
+    clean_title = re.sub(r'[<>:"/\\|?*]', '', page_title)
+    clean_title = clean_title.strip('. ')
+    if not clean_title:
+        clean_title = "Document"
     return f"{clean_title}.pdf"
 
 def parse_page_selection(selection_str, total_pages):
@@ -120,9 +124,9 @@ def main(url, output, pages, delay, scale):
 
     embed_url = f"https://www.scribd.com/embeds/{doc_id}/content?start_page=1&view_mode=scroll"
     
-    temp_dir = "temp_capture"
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
+    temp_dir_obj = tempfile.TemporaryDirectory(prefix="scribdl_")
+    temp_dir = temp_dir_obj.name
+    atexit.register(temp_dir_obj.cleanup)
 
     with sync_playwright() as p:
         with Progress(
@@ -169,7 +173,7 @@ def main(url, output, pages, delay, scale):
 
             try:
                 page.wait_for_selector(".outer_page", timeout=15000)
-            except:
+            except PlaywrightTimeoutError:
                 pass
 
             total_pages_detected = page.locator(".outer_page").count()
@@ -209,6 +213,11 @@ def main(url, output, pages, delay, scale):
                 page_element = all_locators.nth(idx)
                 page_element.scroll_into_view_if_needed()
                 
+                try:
+                    page_element.locator("img, canvas, .absimg").first.wait_for(state="visible", timeout=3000)
+                except PlaywrightTimeoutError:
+                    pass
+                
                 time.sleep(final_delay)
                 progress.update(capture_task, description=f"[green]Capturing page {idx+1}...")
                 
@@ -227,6 +236,10 @@ def main(url, output, pages, delay, scale):
                 clean_range = selected_pages_str.replace(' ', '')
                 output_file = f"{os.path.splitext(output_file)[0]}_[{clean_range}].pdf"
 
+            if not os.path.isabs(output_file) and not os.path.dirname(output_file):
+                os.makedirs("output", exist_ok=True)
+                output_file = os.path.join("output", output_file)
+
             with open(output_file, "wb") as f:
                 f.write(img2pdf.convert(image_paths))
             
@@ -236,13 +249,10 @@ def main(url, output, pages, delay, scale):
             
             log_history(url, doc_title, len(page_indices), output_file)
             
-    for img in image_paths:
-        if os.path.exists(img):
-            os.remove(img)
     try:
-        if not os.listdir(temp_dir):
-            os.rmdir(temp_dir)
-    except:
+        temp_dir_obj.cleanup()
+        atexit.unregister(temp_dir_obj.cleanup)
+    except Exception:
         pass
     
     console.print(f"\n[bold green]Success![/bold green] Saved as: [white]{output_file}[/white]")

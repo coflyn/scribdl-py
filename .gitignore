@@ -6,7 +6,7 @@ __pycache__/
 *.pyd
 
 # Application specific
-temp_capture/
+output/
 *.pdf
 history.json
 
