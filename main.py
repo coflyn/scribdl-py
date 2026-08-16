@@ -20,13 +20,13 @@ def load_config():
     config = configparser.ConfigParser()
     config.read('config.ini')
     defaults = {
-        'delay': 3.0,
+        'delay': 0.5,
         'scale': 2,
         'output': None
     }
     if 'SETTINGS' in config:
         settings = config['SETTINGS']
-        defaults['delay'] = settings.getfloat('delay', 3.0)
+        defaults['delay'] = settings.getfloat('delay', 0.5)
         defaults['scale'] = settings.getint('scale', 2)
         defaults['output'] = settings.get('output', None) or None
     return defaults
@@ -97,19 +97,24 @@ def log_history(url, title, pages_count, output_file):
 @click.argument('url', required=False)
 @click.option('--output', '-o', help='Output filename')
 @click.option('--pages', '-p', help='Page range (e.g. "all", "3", or "1-10")')
-@click.option('--delay', '-d', type=float, help='Delay between page scrolls (seconds)')
+@click.option('--delay', '-d', type=float, help='Extra delay between page scrolls (seconds)')
 @click.option('--scale', '-s', type=int, help='Scaling factor (1 or 2)')
-def main(url, output, pages, delay, scale):
+@click.option('--quiet', '-q', is_flag=True, help='Disable progress output')
+def main(url, output, pages, delay, scale, quiet):
     config_settings = load_config()
     
     if not url:
         url = Prompt.ask("[bold cyan]Input Target URL[/bold cyan]")
         
+    # Clean input URL in case of surrounding whitespace or stray characters
+    url = url.strip().strip("'\"")
+    
     final_delay = delay if delay is not None else config_settings['delay']
     final_scale = scale if scale is not None else config_settings['scale']
     final_output = output if output is not None else config_settings['output']
 
-    console.print(f"\n[bold purple]scribdl-py[/bold purple] | [dim]Simple Scribd Downloader[/dim]\n", justify="center")
+    if not quiet:
+        console.print(f"\n[bold purple]scribdl-py[/bold purple] | [dim]Simple Scribd Downloader[/dim]\n", justify="center")
     
     doc_id = None
     match = re.search(r"/(?:document|presentation|doc|book|article|listen)/(\d+)", url)
@@ -132,7 +137,8 @@ def main(url, output, pages, delay, scale):
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
-            console=console
+            console=console,
+            disable=quiet
         ) as progress:
             launch_task = progress.add_task("[cyan]Initializing Browser Engine...", total=None)
             browser = p.chromium.launch(headless=True)
@@ -169,7 +175,8 @@ def main(url, output, pages, delay, scale):
             if not doc_title or doc_title.lower() == 'scribd':
                  doc_title = "Archived_Document"
 
-            console.print(f"[dim]Title:[/dim]          [bold white]{doc_title}[/bold white]")
+            if not quiet:
+                console.print(f"[dim]Title:[/dim]          [bold white]{doc_title}[/bold white]")
 
             try:
                 page.wait_for_selector(".outer_page", timeout=15000)
@@ -182,7 +189,8 @@ def main(url, output, pages, delay, scale):
                 browser.close()
                 sys.exit(1)
 
-            console.print(f"[dim]Total Pages:[/dim]     [bold cyan]{total_pages_detected}[/bold cyan]")
+            if not quiet:
+                console.print(f"[dim]Total Pages:[/dim]     [bold cyan]{total_pages_detected}[/bold cyan]")
         
         selected_pages_str = pages
         if not selected_pages_str:
@@ -204,7 +212,8 @@ def main(url, output, pages, delay, scale):
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            console=console
+            console=console,
+            disable=quiet
         ) as progress:
             capture_task = progress.add_task(f"[green]Downloading pages...", total=len(page_indices))
             
@@ -213,12 +222,30 @@ def main(url, output, pages, delay, scale):
                 page_element = all_locators.nth(idx)
                 page_element.scroll_into_view_if_needed()
                 
+                # Smart Waiting: check image loading + text layer readiness
                 try:
-                    page_element.locator("img, canvas, .absimg").first.wait_for(state="visible", timeout=3000)
+                    # Wait for image element if present
+                    img_loc = page_element.locator("img, canvas, .absimg").first
+                    if img_loc.count() > 0:
+                        img_loc.wait_for(state="visible", timeout=5000)
+                        # Verify natural dimensions if it's an <img> tag to ensure not blank
+                        page.evaluate("""(elem) => {
+                            const img = elem.querySelector('img');
+                            if (img && !img.complete) {
+                                return new Promise(resolve => {
+                                    img.onload = resolve;
+                                    img.onerror = resolve;
+                                    setTimeout(resolve, 3000);
+                                });
+                            }
+                        }""", page_element.element_handle())
                 except PlaywrightTimeoutError:
                     pass
                 
-                time.sleep(final_delay)
+                # Apply configured extra delay to ensure rendering completes
+                if final_delay > 0:
+                    time.sleep(final_delay)
+                    
                 progress.update(capture_task, description=f"[green]Capturing page {idx+1}...")
                 
                 img_path = os.path.join(temp_dir, f"page_{idx+1}.png")
@@ -255,7 +282,8 @@ def main(url, output, pages, delay, scale):
     except Exception:
         pass
     
-    console.print(f"\n[bold green]Success![/bold green] Saved as: [white]{output_file}[/white]")
+    if not quiet:
+        console.print(f"\n[bold green]Success![/bold green] Saved as: [white]{output_file}[/white]")
 
 if __name__ == "__main__":
     main()
