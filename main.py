@@ -88,7 +88,7 @@ def log_history(url, title, pages_count, output_file):
     with open(history_file, 'w') as f:
         json.dump(history, f, indent=4)
 
-def process_download(url, output, pages, delay, scale, quiet, is_batch=False):
+def process_download(url, output, pages, delay, scale, quiet, is_batch=False, threads=1):
     config_settings = load_config()
     final_delay = delay if delay is not None else config_settings['delay']
     final_scale = scale if scale is not None else config_settings['scale']
@@ -187,7 +187,6 @@ def process_download(url, output, pages, delay, scale, quiet, is_batch=False):
             browser.close()
             return False
 
-
         image_paths = []
         total_selected = len(page_indices)
         all_locators = page.locator(".outer_page")
@@ -227,11 +226,17 @@ def process_download(url, output, pages, delay, scale, quiet, is_batch=False):
                 filled = int(bar_length * (idx_count / total_selected))
                 bar = '#' * filled + '.' * (bar_length - filled)
                 spinner = spinner_chars[idx_count % len(spinner_chars)]
-                sys.stdout.write(f"\r[{spinner}] Downloading page {idx_count}/{total_selected} [{bar}] {percent}%")
-                sys.stdout.flush()
+                
+                if is_batch:
+                    print(f"[{doc_title[:25]}] Page {idx_count}/{total_selected} ({percent}%)")
+                else:
+                    sys.stdout.write(f"\r[{spinner}] Downloading page {idx_count}/{total_selected} [{bar}] {percent}%")
+                    sys.stdout.flush()
 
         if not quiet:
-            print("\n[+] Converting to PDF...")
+            if not is_batch:
+                print()
+            print(f"[{doc_title[:25]}] Converting to PDF...")
 
         output_file = final_output if final_output else get_filename(url, doc_title)
         
@@ -262,15 +267,19 @@ def process_download(url, output, pages, delay, scale, quiet, is_batch=False):
         print(f"[✓] Saved: {output_file}")
     return True
 
+
 @click.command()
 @click.argument('url', required=False)
 @click.option('--file', '-f', type=click.Path(exists=True), help='Batch file containing list of Scribd URLs')
+@click.option('--threads', '-t', type=int, default=3, help='Max parallel threads for batch processing (default: 3)')
 @click.option('--output', '-o', help='Output filename')
 @click.option('--pages', '-p', help='Page range (e.g. "all", "3", or "1-10")')
 @click.option('--delay', '-d', type=float, help='Extra delay between page scrolls (seconds)')
 @click.option('--scale', '-s', type=int, help='Scaling factor (1 or 2)')
 @click.option('--quiet', '-q', is_flag=True, help='Disable progress output')
-def main(url, file, output, pages, delay, scale, quiet):
+def main(url, file, threads, output, pages, delay, scale, quiet):
+    config_settings = load_config()
+    final_threads = threads if threads is not None else 3
     urls_to_process = []
     
     if file:
@@ -283,7 +292,7 @@ def main(url, file, output, pages, delay, scale, quiet):
             print(f"Error: No valid URLs found in file '{file}'.")
             sys.exit(1)
         if not quiet:
-            print(f"Batch mode: Found {len(urls_to_process)} URL(s) to process.")
+            print(f"Batch mode: Found {len(urls_to_process)} URL(s) to process (using up to {final_threads} parallel threads).")
     elif url:
         clean_input = url.strip().strip("'\"")
         if clean_input.endswith('.txt') and os.path.exists(clean_input):
@@ -297,7 +306,7 @@ def main(url, file, output, pages, delay, scale, quiet):
                 print(f"Error: No valid URLs found in file '{file}'.")
                 sys.exit(1)
             if not quiet:
-                print(f"Batch mode: Found {len(urls_to_process)} URL(s) to process.")
+                print(f"Batch mode: Found {len(urls_to_process)} URL(s) to process (using up to {final_threads} parallel threads).")
         else:
             urls_to_process.append(clean_input)
     else:
@@ -305,7 +314,7 @@ def main(url, file, output, pages, delay, scale, quiet):
             print("Select mode:")
             print("  1. Single URL")
             print("  2. Batch file (.txt)")
-            choice = input("Enter choice [1]: ").strip()
+            choice = input("Enter choice [1]: ").strip().strip("'\"")
             
             if choice == "2":
                 file_path = input("Enter batch file path (e.g. urls.txt): ").strip().strip("'\"")
@@ -321,8 +330,25 @@ def main(url, file, output, pages, delay, scale, quiet):
                 if not urls_to_process:
                     print(f"Error: No valid URLs found in file '{file_path}'.")
                     sys.exit(1)
+                threads_input = input(f"Enter max parallel threads [{final_threads}]: ").strip()
+                if threads_input.isdigit() and int(threads_input) > 0:
+                    final_threads = int(threads_input)
                 if not quiet:
-                    print(f"Batch mode: Found {len(urls_to_process)} URL(s) to process.")
+                    print(f"Batch mode: Found {len(urls_to_process)} URL(s) to process (using up to {final_threads} parallel threads).")
+            elif choice.startswith("http://") or choice.startswith("https://") or (choice.isdigit() and len(choice) > 4):
+                urls_to_process.append(choice)
+            elif choice.endswith(".txt") and os.path.exists(choice):
+                file = choice
+                with open(choice, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line_url = line.strip().strip("'\"")
+                        if line_url and not line_url.startswith('#'):
+                            urls_to_process.append(line_url)
+                if not urls_to_process:
+                    print(f"Error: No valid URLs found in file '{choice}'.")
+                    sys.exit(1)
+                if not quiet:
+                    print(f"Batch mode: Found {len(urls_to_process)} URL(s) to process (using up to {final_threads} parallel threads).")
             else:
                 input_url = input("Enter target URL: ").strip().strip("'\"")
                 if input_url:
@@ -342,17 +368,33 @@ def main(url, file, output, pages, delay, scale, quiet):
         print("Error: Target URL or input file (-f/--file) is required.")
         sys.exit(1)
 
-    default_pages = pages if pages else ("all" if len(urls_to_process) > 1 else None)
-
     successful = 0
     total = len(urls_to_process)
     is_batch_mode = len(urls_to_process) > 1 or file is not None
 
-    for idx, item_url in enumerate(urls_to_process, start=1):
-        if is_batch_mode and not quiet:
-            print(f"\n--- Batch Task [{idx}/{total}] ---")
-        if process_download(item_url, output if len(urls_to_process) == 1 else None, pages, delay, scale, quiet, is_batch=is_batch_mode):
-            successful += 1
+    if is_batch_mode and len(urls_to_process) > 1:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        max_workers = min(final_threads, len(urls_to_process))
+        if not quiet:
+            print(f"\nStarting parallel download with {max_workers} worker(s)...")
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_url = {
+                executor.submit(process_download, item_url, None, pages, delay, scale, quiet, True): item_url
+                for item_url in urls_to_process
+            }
+            for future in as_completed(future_to_url):
+                try:
+                    if future.result():
+                        successful += 1
+                except Exception as e:
+                    print(f"Error processing URL: {e}")
+    else:
+        for idx, item_url in enumerate(urls_to_process, start=1):
+            if is_batch_mode and not quiet:
+                print(f"\nBatch Task [{idx}/{total}]")
+            if process_download(item_url, output if len(urls_to_process) == 1 else None, pages, delay, scale, quiet, is_batch=is_batch_mode, threads=final_threads):
+                successful += 1
 
     if is_batch_mode and not quiet:
         print(f"\n[✓] Batch complete: {successful}/{total} documents downloaded successfully.")

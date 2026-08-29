@@ -26,7 +26,7 @@
 
 - **Automated Capture** - Loads and renders Scribd documents directly via Playwright headless browser
 - **Smart Waiting** - Verifies DOM and image rendering status per page to prevent blank outputs
-- **Batch Processing** - Download multiple documents in one go from a URL list file (`-f urls.txt`)
+- **Parallel Batch Mode** - Download multiple documents concurrently with multi-threading (`-f urls.txt -t 4`)
 - **Page Selection** - Export the full document or specific page ranges (e.g. `1-10`, `5`)
 - **High Resolution** - Configurable scaling factor up to 2x for HD rendering
 - **Auto Sanitization** - Cleans document titles to produce safe filenames across OS environments
@@ -36,6 +36,8 @@
 ---
 
 ### ⚠️ Legal Disclaimer
+
+This tool is intended for personal archival of documents you already have legal access to. Please respect Scribd's Terms of Service and the intellectual property of the original content creators. The developers are not responsible for any misuse of this tool.
 
 ---
 
@@ -66,23 +68,81 @@ Simply run the script with the document URL:
 python main.py <enter>
 # or
 python main.py "SCRIBD_URL"
-# or batch download from file
-python main.py -f urls.txt
+# or parallel batch download from file
+python main.py -f urls.txt -t 3
 ```
 
 **CLI Options:**
 
-- `-f, --file`  : Path to text file containing list of Scribd URLs (one per line).
-- `-o, --output`: Custom output filename.
+- `-f, --file` : Path to text file containing list of Scribd URLs (one per line).
+- `-t, --threads`: Number of parallel workers for batch downloading (default: `3`).
+- `-o, --output` : Custom output filename.
 - `-p, --pages` : Page selection (`all`, `3`, or `1-10`).
 - `-d, --delay` : Custom extra delay per page in seconds (e.g., `0.5`).
 - `-s, --scale` : Scale factor (`1` for SD, `2` for HD).
 - `-q, --quiet` : Disable progress output (silent mode).
 
-**Example:**
+**Quick Examples:**
 
 ```bash
-python main.py "https://www.scribd.com/document/402293816/Technics-SA-EH550-pdf" --pages "1-10" --delay 0.5
+# Single URL with custom page range and delay
+python main.py "https://www.scribd.com/document/123456789/Sample-Document" --pages "1-10" --delay 0.5
+
+# Parallel batch download from file with 4 threads
+python main.py -f urls.txt -t 4
+```
+
+---
+
+### Example Output
+
+#### Single Document Download
+
+```text
+$ python main.py
+Select mode:
+  1. Single URL
+  2. Batch file (.txt)
+Enter choice [1]: 1
+Enter target URL: https://www.scribd.com/document/123456789/Sample-Document
+
+Connecting to Scribd (123456789)...
+Document : Sample Document
+Pages    : 21
+Pages to download [all(default), e.g. 1-5]:
+[-] Downloading page 21/21 [####################] 100%
+[Sample Document] Converting to PDF...
+[✓] Saved: output/Sample Document.pdf
+```
+
+#### Parallel Batch Download
+
+```text
+$ python main.py -f urls.txt -t 3
+Batch mode: Found 3 URL(s) to process (using up to 3 parallel threads).
+
+Starting parallel download with 3 worker(s)...
+
+Connecting to Scribd (111111111)...
+Connecting to Scribd (222222222)...
+Connecting to Scribd (333333333)...
+Document : You Are Awesome
+Pages    : 6
+Document : Keep On Coding
+Pages    : 9
+Document : Python is the Best
+Pages    : 14
+[Keep On Coding] Page 1/9 (11%)
+[You Are Awesome] Page 1/6 (16%)
+[Python is the Best] Page 1/14 (7%)
+...
+[You Are Awesome] Page 6/6 (100%)
+[You Are Awesome] Converting to PDF...
+[✓] Saved: output/You Are Awesome.pdf
+[✓] Saved: output/Keep On Coding.pdf
+[✓] Saved: output/Python Masterclass.pdf
+
+[✓] Batch complete: 3/3 documents downloaded successfully.
 ```
 
 ---
