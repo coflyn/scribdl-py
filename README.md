@@ -1,31 +1,40 @@
-# Scribd Downloader (scribdl-py) 📄
+<p align="center">
+  <img src="assets/scribd_logo.png" alt="Scribd" width="350">
+</p>
 
-> Simple tool to save Scribd documents and embeds as PDF files.
+<h1 align="center">Scribd Downloader</h1>
 
-![Version](https://img.shields.io/badge/version-3.1.0-purple.svg)
-![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+<p align="center">
+  <b>Save Scribd documents and embeds as PDF files for offline reading.</b>
+</p>
 
-**Scribd Downloader (scribdl-py)** is a CLI tool that helps you save Scribd documents and embeds into high-quality PDF files for offline reading. It uses a headless browser engine with Smart Waiting to capture every page accurately and smoothly.
+<p align="center">
+  <a href="https://www.python.org/downloads/">
+    <img src="https://img.shields.io/badge/Python-3.8+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.8+">
+  </a>
+  <a href="https://playwright.dev/python/">
+    <img src="https://img.shields.io/badge/Playwright-1.58+-green?style=for-the-badge&logo=playwright&logoColor=white" alt="Playwright">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-orange?style=for-the-badge" alt="MIT License">
+  </a>
+</p>
+
+---
+
+## Features
+
+- **Automated Capture** - Loads and renders Scribd documents directly via Playwright headless browser
+- **Smart Waiting** - Verifies DOM and image rendering status per page to prevent blank outputs
+- **Page Selection** - Export the full document or specific page ranges (e.g. `1-10`, `5`)
+- **High Resolution** - Configurable scaling factor up to 2x for HD rendering
+- **Auto Sanitization** - Cleans document titles to produce safe filenames across OS environments
+- **Automatic Cleanup** - Safely purges temporary screen buffers on completion or exit
+- **History Tracking** - Maintains a structured download log in `history.json`
 
 ---
 
 ### ⚠️ Legal Disclaimer
-
-This tool is intended for personal archival of documents you already have legal access to. Please respect Scribd's Terms of Service and the intellectual property of the authors. The developers are not responsible for any misuse of this tool.
-
----
-
-### Key Features
-
-- **Smart Waiting**: Automatically verifies image assets and rendering status before capturing each page to prevent blank/white output.
-- **Auto-Organized Output**: Downloaded PDFs are neatly saved into the `output/` folder by default.
-- **Safe Naming**: Automatically sanitizes filenames so they work flawlessly across Windows, Mac, and Linux.
-- **Reliable Cleanup**: Temporary files are handled safely and automatically cleaned up, even if you stop the script midway.
-- **High Quality**: Saves pages in HD for better reading and printing.
-- **Pick Pages**: Download the whole file or just specific pages (e.g., `1-10`).
-- **Join PDF**: Combines all captured pages into a single, clean PDF file.
-- **History Log**: Keeps a record of each download in `history.json`.
 
 ---
 
@@ -87,7 +96,7 @@ delay = 0.5
 scale = 2
 
 # Default output filename (Leave empty to auto-detect document title)
-output = 
+output =
 ```
 
 ---
