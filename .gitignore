@@ -1,16 +1,26 @@
-# Python environment
+# Python environment & cache
 venv/
+ENV/
+env/
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 
-# Application specific
+# Application output & local user data
 output/
 *.pdf
 history.json
+*.txt
+!*.txt.example
 
-# System files
+# Temporary files
+scribdl_*
+tmp/
+
+# OS / System files
 .DS_Store
+Thumbs.db
+
+# IDE & Editor configs
 .vscode/
 .idea/
+*.swp

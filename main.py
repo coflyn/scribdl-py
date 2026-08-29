@@ -88,27 +88,8 @@ def log_history(url, title, pages_count, output_file):
     with open(history_file, 'w') as f:
         json.dump(history, f, indent=4)
 
-@click.command()
-@click.argument('url', required=False)
-@click.option('--output', '-o', help='Output filename')
-@click.option('--pages', '-p', help='Page range (e.g. "all", "3", or "1-10")')
-@click.option('--delay', '-d', type=float, help='Extra delay between page scrolls (seconds)')
-@click.option('--scale', '-s', type=int, help='Scaling factor (1 or 2)')
-@click.option('--quiet', '-q', is_flag=True, help='Disable progress output')
-def main(url, output, pages, delay, scale, quiet):
+def process_download(url, output, pages, delay, scale, quiet, is_batch=False):
     config_settings = load_config()
-    
-    if not url:
-        try:
-            url = input("Enter target URL: ")
-        except (KeyboardInterrupt, EOFError):
-            sys.exit(0)
-        
-    url = url.strip().strip("'\"")
-    if not url:
-        print("Error: Target URL is required.")
-        sys.exit(1)
-    
     final_delay = delay if delay is not None else config_settings['delay']
     final_scale = scale if scale is not None else config_settings['scale']
     final_output = output if output is not None else config_settings['output']
@@ -121,8 +102,8 @@ def main(url, output, pages, delay, scale, quiet):
         doc_id = url
     
     if not doc_id:
-        print("Error: Invalid Scribd URL.")
-        sys.exit(1)
+        print(f"Error: Invalid Scribd URL ({url}). Skipping...")
+        return False
 
     embed_url = f"https://www.scribd.com/embeds/{doc_id}/content?start_page=1&view_mode=scroll"
     
@@ -132,7 +113,7 @@ def main(url, output, pages, delay, scale, quiet):
 
     with sync_playwright() as p:
         if not quiet:
-            print("Connecting to Scribd...")
+            print(f"\nConnecting to Scribd ({doc_id})...")
         
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
@@ -144,7 +125,12 @@ def main(url, output, pages, delay, scale, quiet):
         context.route("**/*analytics*/**", lambda route: route.abort())
         
         page = context.new_page()
-        page.goto(embed_url, wait_until="domcontentloaded", timeout=60000)
+        try:
+            page.goto(embed_url, wait_until="domcontentloaded", timeout=60000)
+        except PlaywrightTimeoutError:
+            print(f"Error: Connection timeout for {url}. Skipping...")
+            browser.close()
+            return False
         
         from urllib.parse import unquote
         
@@ -173,9 +159,9 @@ def main(url, output, pages, delay, scale, quiet):
 
         total_pages_detected = page.locator(".outer_page").count()
         if total_pages_detected == 0:
-            print("Error: No pages detected. Target document might be private or restricted.")
+            print(f"Error: No pages detected for {url}. Target might be private or restricted.")
             browser.close()
-            sys.exit(1)
+            return False
 
         if not quiet:
             print(f"Document : {doc_title}")
@@ -183,20 +169,24 @@ def main(url, output, pages, delay, scale, quiet):
     
         selected_pages_str = pages
         if not selected_pages_str:
-            try:
-                selected_pages_str = input("Pages to download [all]: ").strip()
-            except (KeyboardInterrupt, EOFError):
-                browser.close()
-                sys.exit(0)
-            if not selected_pages_str:
+            if is_batch:
                 selected_pages_str = "all"
+            else:
+                try:
+                    selected_pages_str = input("Pages to download [all(default), e.g. 1-5]: ").strip()
+                except (KeyboardInterrupt, EOFError):
+                    browser.close()
+                    sys.exit(0)
+                if not selected_pages_str:
+                    selected_pages_str = "all"
         
         try:
             page_indices = parse_page_selection(selected_pages_str, total_pages_detected)
         except ValueError as e:
             print(f"Error: {str(e)}")
             browser.close()
-            sys.exit(1)
+            return False
+
 
         image_paths = []
         total_selected = len(page_indices)
@@ -270,6 +260,102 @@ def main(url, output, pages, delay, scale, quiet):
     
     if not quiet:
         print(f"[✓] Saved: {output_file}")
+    return True
+
+@click.command()
+@click.argument('url', required=False)
+@click.option('--file', '-f', type=click.Path(exists=True), help='Batch file containing list of Scribd URLs')
+@click.option('--output', '-o', help='Output filename')
+@click.option('--pages', '-p', help='Page range (e.g. "all", "3", or "1-10")')
+@click.option('--delay', '-d', type=float, help='Extra delay between page scrolls (seconds)')
+@click.option('--scale', '-s', type=int, help='Scaling factor (1 or 2)')
+@click.option('--quiet', '-q', is_flag=True, help='Disable progress output')
+def main(url, file, output, pages, delay, scale, quiet):
+    urls_to_process = []
+    
+    if file:
+        with open(file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line_url = line.strip().strip("'\"")
+                if line_url and not line_url.startswith('#'):
+                    urls_to_process.append(line_url)
+        if not urls_to_process:
+            print(f"Error: No valid URLs found in file '{file}'.")
+            sys.exit(1)
+        if not quiet:
+            print(f"Batch mode: Found {len(urls_to_process)} URL(s) to process.")
+    elif url:
+        clean_input = url.strip().strip("'\"")
+        if clean_input.endswith('.txt') and os.path.exists(clean_input):
+            file = clean_input
+            with open(file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line_url = line.strip().strip("'\"")
+                    if line_url and not line_url.startswith('#'):
+                        urls_to_process.append(line_url)
+            if not urls_to_process:
+                print(f"Error: No valid URLs found in file '{file}'.")
+                sys.exit(1)
+            if not quiet:
+                print(f"Batch mode: Found {len(urls_to_process)} URL(s) to process.")
+        else:
+            urls_to_process.append(clean_input)
+    else:
+        try:
+            print("Select mode:")
+            print("  1. Single URL")
+            print("  2. Batch file (.txt)")
+            choice = input("Enter choice [1]: ").strip()
+            
+            if choice == "2":
+                file_path = input("Enter batch file path (e.g. urls.txt): ").strip().strip("'\"")
+                if not os.path.exists(file_path):
+                    print(f"Error: File '{file_path}' not found.")
+                    sys.exit(1)
+                file = file_path
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line_url = line.strip().strip("'\"")
+                        if line_url and not line_url.startswith('#'):
+                            urls_to_process.append(line_url)
+                if not urls_to_process:
+                    print(f"Error: No valid URLs found in file '{file_path}'.")
+                    sys.exit(1)
+                if not quiet:
+                    print(f"Batch mode: Found {len(urls_to_process)} URL(s) to process.")
+            else:
+                input_url = input("Enter target URL: ").strip().strip("'\"")
+                if input_url:
+                    if input_url.endswith('.txt') and os.path.exists(input_url):
+                        file = input_url
+                        with open(file, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                line_url = line.strip().strip("'\"")
+                                if line_url and not line_url.startswith('#'):
+                                    urls_to_process.append(line_url)
+                    else:
+                        urls_to_process.append(input_url)
+        except (KeyboardInterrupt, EOFError):
+            sys.exit(0)
+            
+    if not urls_to_process:
+        print("Error: Target URL or input file (-f/--file) is required.")
+        sys.exit(1)
+
+    default_pages = pages if pages else ("all" if len(urls_to_process) > 1 else None)
+
+    successful = 0
+    total = len(urls_to_process)
+    is_batch_mode = len(urls_to_process) > 1 or file is not None
+
+    for idx, item_url in enumerate(urls_to_process, start=1):
+        if is_batch_mode and not quiet:
+            print(f"\n--- Batch Task [{idx}/{total}] ---")
+        if process_download(item_url, output if len(urls_to_process) == 1 else None, pages, delay, scale, quiet, is_batch=is_batch_mode):
+            successful += 1
+
+    if is_batch_mode and not quiet:
+        print(f"\n[✓] Batch complete: {successful}/{total} documents downloaded successfully.")
 
 if __name__ == "__main__":
     main()

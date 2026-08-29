@@ -26,6 +26,7 @@
 
 - **Automated Capture** - Loads and renders Scribd documents directly via Playwright headless browser
 - **Smart Waiting** - Verifies DOM and image rendering status per page to prevent blank outputs
+- **Batch Processing** - Download multiple documents in one go from a URL list file (`-f urls.txt`)
 - **Page Selection** - Export the full document or specific page ranges (e.g. `1-10`, `5`)
 - **High Resolution** - Configurable scaling factor up to 2x for HD rendering
 - **Auto Sanitization** - Cleans document titles to produce safe filenames across OS environments
@@ -65,10 +66,13 @@ Simply run the script with the document URL:
 python main.py <enter>
 # or
 python main.py "SCRIBD_URL"
+# or batch download from file
+python main.py -f urls.txt
 ```
 
 **CLI Options:**
 
+- `-f, --file`  : Path to text file containing list of Scribd URLs (one per line).
 - `-o, --output`: Custom output filename.
 - `-p, --pages` : Page selection (`all`, `3`, or `1-10`).
 - `-d, --delay` : Custom extra delay per page in seconds (e.g., `0.5`).
