@@ -17,14 +17,58 @@ def load_config():
     defaults = {
         'delay': 0.5,
         'scale': 2,
-        'output': None
+        'output': None,
+        'browser_path': None
     }
     if 'SETTINGS' in config:
         settings = config['SETTINGS']
         defaults['delay'] = settings.getfloat('delay', 0.5)
         defaults['scale'] = settings.getint('scale', 2)
         defaults['output'] = settings.get('output', None) or None
+        defaults['browser_path'] = settings.get('browser_path', None) or None
     return defaults
+
+def launch_browser(p, headless=True, custom_executable_path=None):
+    custom_path = (
+        custom_executable_path
+        or os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH")
+        or os.environ.get("PLAYWRIGHT_EXECUTABLE_PATH")
+    )
+    if custom_path and os.path.exists(custom_path):
+        return p.chromium.launch(headless=headless, executable_path=custom_path)
+
+    # 1. Try default Playwright chromium bundle
+    try:
+        return p.chromium.launch(headless=headless)
+    except Exception:
+        pass
+
+    # 2. Try system browser channels (e.g. Google Chrome)
+    for channel in ["chrome", "chromium"]:
+        try:
+            return p.chromium.launch(headless=headless, channel=channel)
+        except Exception:
+            pass
+
+    # 3. Try common system binary paths
+    candidate_paths = [
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/chromium",
+        "/snap/bin/chromium",
+        "/usr/bin/brave-browser",
+        "/usr/bin/microsoft-edge",
+    ]
+    for path in candidate_paths:
+        if os.path.exists(path):
+            try:
+                return p.chromium.launch(headless=headless, executable_path=path)
+            except Exception:
+                pass
+
+    # Fallback to default call which will raise the original Playwright error if all else fails
+    return p.chromium.launch(headless=headless)
 
 def get_filename(url, page_title):
     clean_title = re.sub(r'[<>:"/\\|?*]', '', page_title)
@@ -88,11 +132,12 @@ def log_history(url, title, pages_count, output_file):
     with open(history_file, 'w') as f:
         json.dump(history, f, indent=4)
 
-def process_download(url, output, pages, delay, scale, quiet, is_batch=False, threads=1):
+def process_download(url, output, pages, delay, scale, quiet, is_batch=False, threads=1, browser_path=None):
     config_settings = load_config()
     final_delay = delay if delay is not None else config_settings['delay']
     final_scale = scale if scale is not None else config_settings['scale']
     final_output = output if output is not None else config_settings['output']
+    final_browser_path = browser_path if browser_path is not None else config_settings.get('browser_path')
 
     doc_id = None
     match = re.search(r"/(?:document|presentation|doc|book|article|listen)/(\d+)", url)
@@ -115,7 +160,7 @@ def process_download(url, output, pages, delay, scale, quiet, is_batch=False, th
         if not quiet:
             print(f"\nConnecting to Scribd ({doc_id})...")
         
-        browser = p.chromium.launch(headless=True)
+        browser = launch_browser(p, headless=True, custom_executable_path=final_browser_path)
         context = browser.new_context(
             viewport={"width": 1400, "height": 2000},
             device_scale_factor=final_scale
@@ -276,8 +321,9 @@ def process_download(url, output, pages, delay, scale, quiet, is_batch=False, th
 @click.option('--pages', '-p', help='Page range (e.g. "all", "3", or "1-10")')
 @click.option('--delay', '-d', type=float, help='Extra delay between page scrolls (seconds)')
 @click.option('--scale', '-s', type=int, help='Scaling factor (1 or 2)')
+@click.option('--browser-path', '-b', help='Path to custom Chromium/Chrome executable')
 @click.option('--quiet', '-q', is_flag=True, help='Disable progress output')
-def main(url, file, threads, output, pages, delay, scale, quiet):
+def main(url, file, threads, output, pages, delay, scale, browser_path, quiet):
     config_settings = load_config()
     final_threads = threads if threads is not None else 3
     urls_to_process = []
@@ -380,7 +426,7 @@ def main(url, file, threads, output, pages, delay, scale, quiet):
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_url = {
-                executor.submit(process_download, item_url, None, pages, delay, scale, quiet, True): item_url
+                executor.submit(process_download, item_url, None, pages, delay, scale, quiet, True, threads=1, browser_path=browser_path): item_url
                 for item_url in urls_to_process
             }
             for future in as_completed(future_to_url):
@@ -393,7 +439,7 @@ def main(url, file, threads, output, pages, delay, scale, quiet):
         for idx, item_url in enumerate(urls_to_process, start=1):
             if is_batch_mode and not quiet:
                 print(f"\nBatch Task [{idx}/{total}]")
-            if process_download(item_url, output if len(urls_to_process) == 1 else None, pages, delay, scale, quiet, is_batch=is_batch_mode, threads=final_threads):
+            if process_download(item_url, output if len(urls_to_process) == 1 else None, pages, delay, scale, quiet, is_batch=is_batch_mode, threads=final_threads, browser_path=browser_path):
                 successful += 1
 
     if is_batch_mode and not quiet:

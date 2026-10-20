@@ -80,6 +80,7 @@ python main.py -f urls.txt -t 3
 - `-p, --pages` : Page selection (`all`, `3`, or `1-10`).
 - `-d, --delay` : Custom extra delay per page in seconds (e.g., `0.5`).
 - `-s, --scale` : Scale factor (`1` for SD, `2` for HD).
+- `-b, --browser-path` : Path to custom Chromium/Chrome executable (supports `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`).
 - `-q, --quiet` : Disable progress output (silent mode).
 
 **Quick Examples:**
