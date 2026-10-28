@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import re
+import shutil
 import click
 import img2pdf
 import configparser
@@ -34,41 +35,44 @@ def launch_browser(p, headless=True, custom_executable_path=None):
         or os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH")
         or os.environ.get("PLAYWRIGHT_EXECUTABLE_PATH")
     )
-    if custom_path and os.path.exists(custom_path):
+    if custom_path:
+        if not os.path.exists(custom_path):
+            raise FileNotFoundError(f"Browser executable not found: {custom_path}")
         return p.chromium.launch(headless=headless, executable_path=custom_path)
 
-    # 1. Try default Playwright chromium bundle
+    # 1. Default Playwright chromium bundle
     try:
         return p.chromium.launch(headless=headless)
-    except Exception:
-        pass
+    except Exception as default_err:
+        last_error = default_err
 
-    # 2. Try system browser channels (e.g. Google Chrome)
-    for channel in ["chrome", "chromium"]:
+    # 2. System browser channels (cross-platform via Playwright)
+    for channel in ["chrome", "msedge", "chromium"]:
         try:
             return p.chromium.launch(headless=headless, channel=channel)
         except Exception:
             pass
 
-    # 3. Try common system binary paths
-    candidate_paths = [
-        "/usr/bin/google-chrome",
-        "/usr/bin/google-chrome-stable",
-        "/usr/bin/chromium-browser",
-        "/usr/bin/chromium",
-        "/snap/bin/chromium",
-        "/usr/bin/brave-browser",
-        "/usr/bin/microsoft-edge",
+    # 3. System PATH binaries
+    candidate_bins = [
+        "google-chrome",
+        "google-chrome-stable",
+        "chromium-browser",
+        "chromium",
+        "brave-browser",
+        "brave",
+        "microsoft-edge",
+        "msedge",
     ]
-    for path in candidate_paths:
-        if os.path.exists(path):
+    for bin_name in candidate_bins:
+        bin_path = shutil.which(bin_name)
+        if bin_path:
             try:
-                return p.chromium.launch(headless=headless, executable_path=path)
+                return p.chromium.launch(headless=headless, executable_path=bin_path)
             except Exception:
                 pass
 
-    # Fallback to default call which will raise the original Playwright error if all else fails
-    return p.chromium.launch(headless=headless)
+    raise last_error
 
 def get_filename(url, page_title):
     clean_title = re.sub(r'[<>:"/\\|?*]', '', page_title)
